@@ -1,5 +1,8 @@
 import datetime
+from functools import wraps
 import hashlib
+from lib2to3.pgen2 import token
+from re import T
 import pymongo
 from flask_cors import cross_origin
 from bson import ObjectId
@@ -31,11 +34,11 @@ def registration():
 		doc = users_collection.find_one({"email": Registered_user["email"]})
 		if not doc:
 			users_collection.insert_one(Registered_user)
-			return jsonify({'msg': 'Registration Was Successful!!'}), 201
+			return jsonify({"success" : True, 'msg': 'Registration Was Successful!!'}), 201
 		else:
-			return jsonify({'msg': 'That Username is Taken, Please Try a something else'}), 409
+			return jsonify({"success" : False, 'msg': 'That Username is Taken, Please Try a something else'}), 409
 	except Exception as ex:
-		return jsonify({'msg': 'Ooop, Registration Failed, Try AGain'}), 500
+		return jsonify({"success" : False, 'msg': 'Ooop, Registration Failed, Try AGain'}), 500
 
 
 # User Login
@@ -51,15 +54,16 @@ def login():
 				access_token = create_access_token(identity=str(registeredUser['_id']))
 				return jsonify(access_token=access_token), 200
 
-		return jsonify({'msg': 'The username or password is incorrect.'}), 401
+		return jsonify({"success" : False,'msg': 'The Email or Password is Incorrect.'}), 401
 	except Exception as ex:
-		return jsonify({'msg': 'Ooop, Login Failed, Try AGain'}), 500
+		return jsonify({"success" : False, 'msg': 'Ooop, Login Failed, Try AGain'}), 500
 
 
 # Homepage
 @app.route('/')
 def flask_mongodb_atlas():
 	return "Hello, Welcome To Sloovi", 200
+
 
 # APi endpoint For creating a new template
 @app.route('/template', methods=["POST"])
@@ -75,9 +79,9 @@ def new_Template():
 			"user_id": get_jwt_identity()
 		}
 		templates_collection.insert_one(created_data)
-		return jsonify({'msg': 'Request Successful'}), 201
+		return jsonify({"success" : True, 'msg': 'Template Created Successfully'}), 201
 	except Exception as ex:
-		return jsonify({'msg': 'Oooop, Something went wrong, Try Again'}), 500
+		return jsonify({"success" : False, 'msg': 'Oooop, Something went wrong, Try Again'}), 500
 
 
 # Api endpoint for getting all templates
@@ -90,27 +94,29 @@ def all_Templates():
 		for template in templates:
 			template['_id'] = str(template['_id'])
 			del template['user_id']
-		return jsonify({'msg': 'Request Successful', 'data':templates}), 200
+		return jsonify({ 'msg': 'Request Successful', 'data':templates}), 200
 	except Exception as ex:
-		return jsonify({'msg': 'Oooop, Something went wrong, Try Again'}), 500
+		return jsonify({"success" : False, 'msg': 'Oooop, Something went wrong, Try Again'}), 500
 
 
 # Api endpoint for geting a single template
-@app.route("/template/<id>/", methods=["GET"])
+@app.route("/template/<id>", methods=["GET"])
+# @token_required
 @jwt_required()
 @cross_origin()
-def single_template(id):
+def single_template( id):
+
 	try:
-		template = templates_collection.find_one({"_id": ObjectId(id)})
+		template = templates_collection.find_one({"_id": ObjectId(id), "user_id":get_jwt_identity()})
 		if template:
 			template.pop("_id")
 			# del template['user_id']
 			
-			return jsonify({"template id":id}, template,  ), 200
+			return jsonify({"success" : True, "template id":id}, template,  ), 200
 			
-		return jsonify({'msg': 'Request Unsuccessful'}), 200
+		return jsonify({"success" : False, 'msg': 'You dont have access to that template and therefore cannot view'}), 401
 	except Exception as ex:
-		return jsonify({'msg': 'Oooop, Something went wrong, Try Again'}), 200
+		return jsonify({"success" : False, 'msg': 'Oooop, Something went wrong, Try Again'}), 500
 
 
 # Api endpoint for update a template
@@ -118,19 +124,21 @@ def single_template(id):
 @jwt_required()
 @cross_origin()
 def update_Template(id):
+
 	request_data = request.get_json()
 	update_data = {
 		"template_name": request_data["template_name"],
 		"subject": request_data["subject"],
-        "body": request_data["body"],
+		"body": request_data["body"],
 		}
+	
 	try:
-		template = templates_collection.update_one({'_id': ObjectId(id) }, {"$set": update_data})
+		template = templates_collection.update_one({'_id': ObjectId(id), "user_id":get_jwt_identity() }, {"$set": update_data})
 		if template.modified_count == 1:
-			return jsonify({'msg': 'Request Successful', "new data": update_data, "template id":id}), 200
-		return jsonify({'msg': 'Request Unsuccessful'}), 200
+			return jsonify({"success" : True, 'msg': 'Template Succesfully Updated', "new data": update_data, "template id":id}), 200
+		return jsonify({"success" : False, 'msg': 'You dont have access to that template and therefore cannot update',}), 401
 	except Exception as ex:
-		return jsonify({'msg': 'Oooop, Something went wrong, Try Again'}), 200
+		return jsonify({"success" : False, 'msg': 'Oooop, Something went wrong, Try Again'}), 500
 
 
 # Api endpoint for deleting a template
@@ -139,12 +147,14 @@ def update_Template(id):
 @cross_origin()
 def deleteTemplate(id):
 	try:
-		template = templates_collection.delete_one({ '_id': ObjectId(id) })
+		template = templates_collection.delete_one({ '_id': ObjectId(id), "user_id":get_jwt_identity() })
+
 		if template.deleted_count == 1:
-			return jsonify({'msg': 'Request Successful'}), 200
-		return jsonify({'msg': 'Request Unsuccessful'}), 200
+			return jsonify({"success" : True, 'msg': 'template Successfuly deleted'}), 200
+		
+		return jsonify({"success" : False, 'msg': 'You dont have access to that template and therefore cannot delete'}), 401
 	except Exception as ex:
-		return jsonify({'msg': 'Oooop, Something went wrong, Try Again'}), 500
+		return jsonify({"success" : False, 'msg': 'Oooop, Something went wrong, Try Again'}), 500
 
 
 if __name__ == "__main__":
