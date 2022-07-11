@@ -13,7 +13,7 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 app = Flask(__name__)
 
 # Database Connection
-CONNECTION_STRING = "mongodb+srv://makarios:sloovi@mydb.gftifbj.mongodb.net/mydb?retryWrites=true&w=majority"
+CONNECTION_STRING = ""
 client = pymongo.MongoClient(CONNECTION_STRING)
 db = client.get_database('mydb')
 templates_collection = pymongo.collection.Collection(db, 'templates')
